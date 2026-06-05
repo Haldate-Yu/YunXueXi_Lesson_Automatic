@@ -13,9 +13,10 @@ import urllib.request
 
 import cv2
 from selenium.common import exceptions
-from selenium.webdriver import ActionChains
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -25,19 +26,21 @@ class NewLesson(object):
     urlList = []
 
     def __init__(self):
-        BASE_DIR = os.path.dirname(os.path.realpath(sys.executable))
+        if getattr(sys, 'frozen', False):
+            BASE_DIR = os.path.dirname(os.path.realpath(sys.executable))
+        else:
+            BASE_DIR = os.path.dirname(os.path.realpath(__file__))
         # 调试开启
         # BASE_DIR=r'D:\python_code\autoLearning\dist'
 
-        
-
-        with open("config.json", 'r') as json_file:
+        with open(os.path.join(BASE_DIR, "config.json"), 'r') as json_file:
             config = json.load(json_file)
         account = config['account']
         password = config['password']
         lessonUrl = config['lessonUrl']
-        self.version = config.get('version', 20251030)
+        self.version = config.get('version', 1)
         self.max_retry_count = config.get('max_retry_count', 30)
+        self.chromedriver_port = config.get('chromedriver_port', 9515)
 
         if account == "" or password == "" or len(lessonUrl) == 0:
             print("配置信息不全，请补充后重新启动")
@@ -48,14 +51,17 @@ class NewLesson(object):
         self.password = password
         self.lessonUrl = lessonUrl
         chrome_opt = Options()  # 创建参数设置对象.
-        chromeDriverPath = 'chromedriver'
+        chromeDriverPath = os.path.join(BASE_DIR, 'chromedriver.exe')
         chrome_opt.add_argument('--headless')  # 无界面化.
         chrome_opt.add_argument('--disable-gpu')  # 配合上面的无界面化.
-        chrome_opt.binary_location = '.\\Application\\chrome.exe'
+        chrome_opt.binary_location = os.path.join(BASE_DIR, 'Application', 'chrome.exe')
         chrome_opt.add_argument('--window-size=1920,1080')  # 设置窗口大小, 窗口大小会有影响.
         chrome_opt.add_argument("--mute-audio")  # 静音
         chrome_opt.add_experimental_option("excludeSwitches", ["enable-logging"])  # 禁止日志打印
-        driver = webdriver.Chrome(options=chrome_opt, executable_path=chromeDriverPath)
+        driver = ChromeDriver(
+            service=Service(chromeDriverPath, port=self.chromedriver_port),
+            options=chrome_opt
+        )
         self.driver = driver
 
         # self.driver.get("https://xuexi.yunxuetang.cn/kng/#/course/play?kngId=3ebfc6b5-9271-4e45-a190-1184013c7f39&projectId=&btid=&gwnlUrl=&locateshare=5d7b4f2c-7f70-4f44-8541-6234e759cb99")
@@ -69,7 +75,8 @@ class NewLesson(object):
 
         # 先等待并点击“账号登录”按钮的 button 节点（避免点到不可点击的 span）
         try:
-            tab_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[3]/button[1]")))
+            tab_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[3]/button[1]")))
             self.driver.execute_script("arguments[0].scrollIntoView(true);", tab_btn)
             self.driver.execute_script("arguments[0].click();", tab_btn)
         except exceptions.TimeoutException:
@@ -105,18 +112,21 @@ class NewLesson(object):
 
         # 勾选协议（保持原 XPath，做等待与 JS 点击）
         try:
-            agree = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[2]/div[3]/label/span[1]/span/span")))
+            agree = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[2]/div[3]/label/span[1]/span/span")))
             self.driver.execute_script("arguments[0].click();", agree)
         except exceptions.TimeoutException:
             print("--------------未找到协议勾选框，跳过此步骤")
 
         # 点击登录按钮（保持原 XPath，失败时兜底到 submit 或"登录"文本）
         try:
-            login_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[2]/button")))
+            login_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div[1]/div[1]/div/div/div[2]/button")))
             self.driver.execute_script("arguments[0].click();", login_btn)
         except exceptions.TimeoutException:
             try:
-                login_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' or normalize-space()='登录']")))
+                login_btn = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' or normalize-space()='登录']")))
                 self.driver.execute_script("arguments[0].click();", login_btn)
             except exceptions.TimeoutException:
                 print("--------------未找到登录按钮，页面结构可能已变更")
@@ -217,33 +227,37 @@ class NewLesson(object):
                 # 读取课程开始遍历
                 # self.driver.find_elements_by_class_name("flex-space-between")[0].click()
                 if self.iselement('yxtf-button--larger'):
-                    if len(self.driver.find_elements_by_class_name("yxtf-button--larger")) == 2:
-                        self.driver.find_elements_by_class_name("yxtf-button--larger")[1].click()
+                    if len(self.find_elements_by_class("yxtf-button--larger")) == 2:
+                        self.click_class_element("yxtf-button--larger", 1)
                     else:
-                        self.driver.find_elements_by_class_name("yxtf-button--larger")[0].click()
+                        self.click_class_element("yxtf-button--larger", 0)
                     time.sleep(3)
                 time.sleep(3)
                 # 获取进程，如果没有进程则要开始跳到下一课程
                 process = ''
                 while process == '':
                     if self.iselement('yxt-color-warning'):
-                        process = self.driver.find_element_by_class_name("yxt-color-warning").text
+                        process = self.driver.find_element(By.CLASS_NAME, "yxt-color-warning").text
                         break
                     if self.iselement('yxtf-button--default'):
-                        self.driver.find_elements_by_class_name("yxtf-button--default")[1].click()
+                        moved = self.try_next_lesson()
+                        if not moved:
+                            print("当前链接疑似已全部完成，停止继续跳转")
+                            break
                         print("已学完，跳到下一个")
                         cnt += 1
-                        time.sleep(5)
+                    else:
+                        break
                     # self.driver.find_elements_by_class_name("yxtf-icon-arrow-right")[0].click()
                     # print(process)
                 # 课程数量
                 # ml8=self.driver.find_element_by_class_name("ml8").text
                 if self.iselement('yxt-color-warning') is False:
                     if self.iselement('yxtf-button--larger'):
-                        if len(self.driver.find_elements_by_class_name("yxtf-button--larger")) == 2:
-                            self.driver.find_elements_by_class_name("yxtf-button--larger")[1].click()
+                        if len(self.find_elements_by_class("yxtf-button--larger")) == 2:
+                            self.click_class_element("yxtf-button--larger", 1)
                         else:
-                            self.driver.find_elements_by_class_name("yxtf-button--larger")[0].click()
+                            self.click_class_element("yxtf-button--larger", 0)
                         time.sleep(2)
                 # process=eval(self.driver.find_element_by_class_name("opacity8").text.replace('已完成 ',''))
                 # 到第几页
@@ -253,52 +267,55 @@ class NewLesson(object):
                     # if self.iselement('is-plain'):
                     #     break
                     if self.iselement('yxt-color-warning'):
-                        process = self.driver.find_element_by_class_name("yxt-color-warning").text
+                        process = self.driver.find_element(By.CLASS_NAME, "yxt-color-warning").text
                     if self.iselement('yxtf-button--large'):
                         # print("跳过超时限制")
                         # self.driver.find_elements_by_class_name("yxtf-button--large")[0].click()
-                        element = self.driver.find_element_by_class_name("yxtf-button--large")
+                        element = self.driver.find_element(By.CLASS_NAME, "yxtf-button--large")
                         action = ActionChains(self.driver)
                         action.move_to_element(element)
                         action.send_keys("Enter")
                     if self.iselement("yxt-color-warning"):
-                        print("当前课程剩余时间:" + self.driver.find_element_by_class_name("yxt-color-warning").text)
+                        print("当前课程剩余时间:" + self.driver.find_element(By.CLASS_NAME, "yxt-color-warning").text)
                     else:
-                        self.driver.find_elements_by_class_name("yxtf-button--default")[1].click()
+                        moved = self.try_next_lesson()
+                        if not moved:
+                            print("当前链接疑似已全部完成，停止继续跳转")
+                            break
                         print("已学完，跳到下一个")
                         cnt += 1
                         # 超过30次则跳过
                         if cnt > self.max_retry_count:
                             break
-                        time.sleep(5)
             else:
-                ml8 = self.driver.find_element_by_class_name("ml8").text
+                ml8 = self.driver.find_element(By.CLASS_NAME, "ml8").text
                 if ml8 == "已完成学习":
                     continue
                 process = eval(
-                    self.driver.find_element_by_class_name("opacity8").text.replace('已完成 ', '').replace('%', ''))
+                    self.driver.find_element(By.CLASS_NAME, "opacity8").text.replace('已完成 ', '').replace('%', ''))
                 while process < 100:
                     # if process*cnt
                     time.sleep(5)
                     # if self.iselement('is-plain'):
                     #     break
                     process = eval(
-                        self.driver.find_element_by_class_name("opacity8").text.replace('已完成 ', '').replace('%', ''))
+                        self.driver.find_element(By.CLASS_NAME, "opacity8").text.replace('已完成 ', '').replace('%',
+                                                                                                                ''))
                     if self.iselement('yxtf-button--larger'):
                         print("执行播放")
-                        self.driver.find_elements_by_class_name("yxtf-button--larger")[0].click()
+                        self.click_class_element("yxtf-button--larger", 0)
                         time.sleep(2)
                     if self.iselement('yxtf-button--large'):
                         print("跳过超时限制")
-                        element = self.driver.find_element_by_class_name("yxtf-button--large")
+                        element = self.driver.find_element(By.CLASS_NAME, "yxtf-button--large")
                         action = ActionChains(self.driver)
                         action.move_to_element(element)
                         action.send_keys("Enter")
                         time.sleep(2)
                     if self.iselement("yxt-color-warning"):
                         print("课程进度:" + str(
-                            round(process * 100, 2)) + "%,当前课程剩余时间:" + self.driver.find_element_by_class_name(
-                            "yxt-color-warning").text)
+                            round(process * 100, 2)) + "%,当前课程剩余时间:" + self.driver.find_element(By.CLASS_NAME,
+                                                                                                        "yxt-color-warning").text)
                     else:
                         break
                         # for item in self.driver.find_elements_by_class_name("ulcdsdk-break-word"):
@@ -311,10 +328,45 @@ class NewLesson(object):
 
     def iselement(self, classname):
         try:
-            self.driver.find_element_by_class_name(classname)
+            self.driver.find_element(By.CLASS_NAME, classname)
             return True
         except exceptions.NoSuchElementException:
             return False
+
+    def find_elements_by_class(self, classname):
+        return self.driver.find_elements(By.CLASS_NAME, classname)
+
+    def get_page_signature(self):
+        parts = [self.driver.current_url]
+        for classname in ("ml8", "opacity8", "yxt-color-warning"):
+            elements = self.find_elements_by_class(classname)
+            if elements:
+                parts.append(f"{classname}:{elements[0].text.strip()}")
+        return "|".join(parts)
+
+    def click_class_element(self, classname, index=0):
+        elements = self.find_elements_by_class(classname)
+        if len(elements) <= index:
+            raise exceptions.NoSuchElementException(
+                f"class={classname} 的元素数量不足，无法点击索引 {index}"
+            )
+
+        element = elements[index]
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+        try:
+            element.click()
+        except exceptions.ElementClickInterceptedException:
+            self.driver.execute_script("arguments[0].click();", element)
+
+    def try_next_lesson(self):
+        if len(self.find_elements_by_class("yxtf-button--default")) <= 1:
+            return False
+
+        before = self.get_page_signature()
+        self.click_class_element("yxtf-button--default", 1)
+        time.sleep(5)
+        after = self.get_page_signature()
+        return before != after
 
 
 if __name__ == '__main__':
