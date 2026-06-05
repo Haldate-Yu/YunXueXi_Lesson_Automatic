@@ -41,6 +41,8 @@ class NewLesson(object):
         self.version = config.get('version', 1)
         self.max_retry_count = config.get('max_retry_count', 30)
         self.chromedriver_port = config.get('chromedriver_port', 9515)
+        self.timer_stall_limit = config.get('timer_stall_limit', 6)
+        self.progress_stall_limit = config.get('progress_stall_limit', 6)
 
         if account == "" or password == "" or len(lessonUrl) == 0:
             print("配置信息不全，请补充后重新启动")
@@ -261,6 +263,8 @@ class NewLesson(object):
                         time.sleep(2)
                 # process=eval(self.driver.find_element_by_class_name("opacity8").text.replace('已完成 ',''))
                 # 到第几页
+                stall_count = 0
+                last_process = process
                 while process != '':
                     # if process*cnt
                     time.sleep(10)
@@ -268,15 +272,18 @@ class NewLesson(object):
                     #     break
                     if self.iselement('yxt-color-warning'):
                         process = self.driver.find_element(By.CLASS_NAME, "yxt-color-warning").text
-                    if self.iselement('yxtf-button--large'):
-                        # print("跳过超时限制")
-                        # self.driver.find_elements_by_class_name("yxtf-button--large")[0].click()
-                        element = self.driver.find_element(By.CLASS_NAME, "yxtf-button--large")
-                        action = ActionChains(self.driver)
-                        action.move_to_element(element)
-                        action.send_keys("Enter")
+                    if self.dismiss_timeout_limit():
+                        time.sleep(2)
                     if self.iselement("yxt-color-warning"):
                         print("当前课程剩余时间:" + self.driver.find_element(By.CLASS_NAME, "yxt-color-warning").text)
+                        if process == last_process:
+                            stall_count += 1
+                            if stall_count >= self.timer_stall_limit:
+                                self.try_resume_learning("剩余课程时间持续未变化")
+                                stall_count = 0
+                        else:
+                            stall_count = 0
+                            last_process = process
                     else:
                         moved = self.try_next_lesson()
                         if not moved:
@@ -293,6 +300,8 @@ class NewLesson(object):
                     continue
                 process = eval(
                     self.driver.find_element(By.CLASS_NAME, "opacity8").text.replace('已完成 ', '').replace('%', ''))
+                stall_count = 0
+                last_process = process
                 while process < 100:
                     # if process*cnt
                     time.sleep(5)
@@ -305,17 +314,20 @@ class NewLesson(object):
                         print("执行播放")
                         self.click_class_element("yxtf-button--larger", 0)
                         time.sleep(2)
-                    if self.iselement('yxtf-button--large'):
-                        print("跳过超时限制")
-                        element = self.driver.find_element(By.CLASS_NAME, "yxtf-button--large")
-                        action = ActionChains(self.driver)
-                        action.move_to_element(element)
-                        action.send_keys("Enter")
+                    if self.dismiss_timeout_limit():
                         time.sleep(2)
                     if self.iselement("yxt-color-warning"):
                         print("课程进度:" + str(
                             round(process * 100, 2)) + "%,当前课程剩余时间:" + self.driver.find_element(By.CLASS_NAME,
                                                                                                         "yxt-color-warning").text)
+                        if process == last_process:
+                            stall_count += 1
+                            if stall_count >= self.progress_stall_limit:
+                                self.try_resume_learning("课程进度持续未变化")
+                                stall_count = 0
+                        else:
+                            stall_count = 0
+                            last_process = process
                     else:
                         break
                         # for item in self.driver.find_elements_by_class_name("ulcdsdk-break-word"):
@@ -335,6 +347,46 @@ class NewLesson(object):
 
     def find_elements_by_class(self, classname):
         return self.driver.find_elements(By.CLASS_NAME, classname)
+
+    def dismiss_timeout_limit(self, verbose=False):
+        if not self.iselement('yxtf-button--large'):
+            return False
+
+        element = self.driver.find_element(By.CLASS_NAME, "yxtf-button--large")
+        if verbose:
+            print("检测到超时限制，尝试继续学习")
+        try:
+            action = ActionChains(self.driver)
+            action.move_to_element(element)
+            action.send_keys("Enter")
+            action.perform()
+        except Exception:
+            pass
+
+        try:
+            self.driver.execute_script("arguments[0].click();", element)
+        except exceptions.StaleElementReferenceException:
+            return False
+        return True
+
+    def try_resume_learning(self, reason):
+        print(f"{reason}，尝试恢复播放")
+        handled_popup = self.dismiss_timeout_limit(verbose=True)
+        if self.iselement('yxtf-button--larger'):
+            try:
+                self.click_class_element("yxtf-button--larger", 0)
+                print("已重新触发播放按钮")
+            except exceptions.NoSuchElementException:
+                pass
+
+        if not handled_popup:
+            # 轻量触发页面活跃态，避免长时间无交互后计时停滞。
+            self.driver.execute_script(
+                "window.dispatchEvent(new Event('focus'));"
+                "window.dispatchEvent(new Event('mousemove'));"
+                "window.scrollBy(0, 1);"
+                "window.scrollBy(0, -1);"
+            )
 
     def get_page_signature(self):
         parts = [self.driver.current_url]
