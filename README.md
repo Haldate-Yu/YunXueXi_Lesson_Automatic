@@ -18,7 +18,7 @@
 
 当前目录中几个关键文件的作用如下：
 
-- `newLesson251031.py`
+- `newLesson.py`
 
   - 主程序源码
   - 登录、课程推进、版本号读取等逻辑都在这里
@@ -26,11 +26,11 @@
 
   - 运行配置文件
   - 包含账号、密码、课程链接等信息
-- `build_newLesson251031.py`
+- `build_newLesson.py`
 
   - Python 打包脚本
   - 会自动读取 `newLesson251031.py` 中 `self.version` 的默认值，并据此命名 exe
-- `build_newLesson251031.bat`
+- `build_newLesson.bat`
 
   - Windows 一键打包入口
   - 双击即可执行打包流程
@@ -188,7 +188,7 @@
 
 #### 方式二：希望打包出的 exe 文件名也跟着变
 
-修改源码 `newLesson251031.py` 中这一行的默认值：
+修改源码 `newLesson.py` 中这一行的默认值：
 
 ```python
 self.version = config.get('version', 20260605)
@@ -231,7 +231,7 @@ newLesson-versionv1.exe
 在当前目录打开终端后执行：
 
 ```bash
-python newLesson251031.py
+python newLesson.py
 ```
 
 如果缺少依赖，通常需要安装：
@@ -249,13 +249,13 @@ python -m pip install selenium opencv-python
 直接双击：
 
 ```text
-build_newLesson251031.bat
+build_newLesson.bat
 ```
 
 它会自动调用：
 
 ```text
-python build_newLesson251031.py
+python build_newLesson.py
 ```
 
 ### 方式二：命令行打包
@@ -263,19 +263,19 @@ python build_newLesson251031.py
 在当前目录执行：
 
 ```bash
-python build_newLesson251031.py
+python build_newLesson.py
 ```
 
 ### 打包脚本会做什么
 
-`build_newLesson251031.py` 会自动完成以下工作：
+`build_newLesson.py` 会自动完成以下工作：
 
 1. 定位当前项目目录
-2. 读取 `newLesson251031.py`
+2. 读取 `newLesson.py`
 3. 解析这一行中的默认版本值：
 
 ```python
-self.version = config.get('version', 20260605)
+self.version = config.get('version', xxxxx)
 ```
 
 4. 将版本号转换成合法文件名
@@ -294,7 +294,7 @@ newLesson-version<版本号>.exe
 例如：
 
 ```text
-newLesson-version20260605.exe
+newLesson-versionxxxxx.exe
 ```
 
 ---
@@ -308,7 +308,7 @@ newLesson-version20260605.exe
 把源码中的：
 
 ```python
-self.version = config.get('version', 20260605)
+self.version = config.get('version', xxxxx)
 ```
 
 改成：
@@ -328,7 +328,7 @@ newLesson-version20260630.exe
 把源码中的：
 
 ```python
-self.version = config.get('version', 20260605)
+self.version = config.get('version', xxxxx)
 ```
 
 改成：
@@ -349,13 +349,13 @@ newLesson-versionv1.exe
 
 这里分两种情况。
 
-### 情况一：只是继续打包 `newLesson251031.py`
+### 情况一：只是继续打包 `newLesson.py`
 
 如果主程序文件名不变，通常只需要保留以下文件即可：
 
-- `newLesson251031.py`
-- `build_newLesson251031.py`
-- `build_newLesson251031.bat`
+- `newLesson.py`
+- `build_newLesson.py`
+- `build_newLesson.bat`
 - `config.json`
 - `chromedriver.exe`
 - `Application/`
@@ -367,31 +367,31 @@ newLesson-versionv1.exe
 例如你把主程序从：
 
 ```text
-newLesson251031.py
+newLesson.py
 ```
 
 换成：
 
 ```text
-newLesson251101.py
+newLesson-new.py
 ```
 
-那么需要同步修改 `build_newLesson251031.py` 顶部这一行：
+那么需要同步修改 `build_newLesson.py` 顶部这一行：
 
 ```python
-SCRIPT_NAME = "newLesson251031.py"
+SCRIPT_NAME = "newLesson.py"
 ```
 
 改成：
 
 ```python
-SCRIPT_NAME = "newLesson251101.py"
+SCRIPT_NAME = "newLesson-new.py"
 ```
 
 如果你还想连 bat 文件名也同步，可以把：
 
-- `build_newLesson251031.py`
-- `build_newLesson251031.bat`
+- `build_newLesson.py`
+- `build_newLesson.bat`
 
 一起重命名，但这不是必须的。
 
@@ -505,9 +505,9 @@ build/pydeps/
 
 ### 发布新版本 exe 时
 
-1. 修改 `newLesson251031.py` 中 `self.version` 的默认值
+1. 修改 `newLesson.py` 中 `self.version` 的默认值
 2. 如有需要，修改业务逻辑
-3. 双击 `build_newLesson251031.bat`
+3. 双击 `build_newLesson.bat`
 4. 检查生成的 exe 文件名是否符合预期
 5. 将 exe、`config.json`、`chromedriver.exe`、`Application/` 一起保留或分发
 
