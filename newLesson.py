@@ -139,6 +139,7 @@ class NewLesson(object):
 
         print("--------------开始登录")
         self.driver.implicitly_wait(5)
+        time.sleep(3)
         if self.iselement('tcaptcha-iframe'):
             print('切换滑动验证进行识别')
             # 此时需要切换到弹出的滑块区域，需要切换frame窗口
@@ -225,7 +226,7 @@ class NewLesson(object):
             self.driver.get(lession)
             time.sleep(3)
             # 如果为多课程
-            if self.iselement('flex-space-between'):
+            if self.is_multi_lesson_page():
                 # 读取课程开始遍历
                 # self.driver.find_elements_by_class_name("flex-space-between")[0].click()
                 if self.iselement('yxtf-button--larger'):
@@ -347,6 +348,17 @@ class NewLesson(object):
 
     def find_elements_by_class(self, classname):
         return self.driver.find_elements(By.CLASS_NAME, classname)
+
+    def is_multi_lesson_page(self):
+        if self.iselement('flex-space-between'):
+            return True
+        if len(self.find_elements_by_class("yxtf-button--default")) > 1:
+            return True
+        try:
+            body_text = self.driver.find_element(By.TAG_NAME, "body").text
+        except exceptions.NoSuchElementException:
+            return False
+        return "上一个" in body_text and "下一个" in body_text
 
     def dismiss_timeout_limit(self, verbose=False):
         if not self.iselement('yxtf-button--large'):
